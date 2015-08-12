@@ -536,7 +536,7 @@ def parse_gerrit_ssh_params_from_git_url(git_url):
     return (hostname, username, port, project_name)
 
 
-def query_reviews(remote_url, change=None, current_patch_set=True,
+def query_reviews(remote_url, change=None, current_patch_set=True, topic=None,
                   exception=CommandFailed, parse_exc=Exception):
     if remote_url.startswith('http://') or remote_url.startswith('https://'):
         query = query_reviews_over_http
@@ -545,22 +545,31 @@ def query_reviews(remote_url, change=None, current_patch_set=True,
     return query(remote_url,
                  change=change,
                  current_patch_set=current_patch_set,
+                 topic=topic,
                  exception=exception,
                  parse_exc=parse_exc)
 
 
-def query_reviews_over_http(remote_url, change=None, current_patch_set=True,
+def query_reviews_over_http(remote_url, change=None, current_patch_set=True, topic=None,
                             exception=CommandFailed, parse_exc=Exception):
     url = urljoin(remote_url, '/changes/')
+    paramDict = {}
     if change:
+        query = change
         if current_patch_set:
-            url += '?q=%s&o=CURRENT_REVISION' % change
+            paramDict['o'] = "CURRENT_REVISION"
         else:
-            url += '?q=%s&o=ALL_REVISIONS' % change
+            paramDict['o'] = "ALL_REVISIONS"
     else:
         project_name = re.sub(r"^/|(\.git$)", "", urlparse(remote_url).path)
-        params = urlencode({'q': 'project:%s status:open' % project_name})
-        url += '?' + params
+        query = 'project:%s status:open' % project_name
+
+    if topic:
+        query += " topic:%s" % topic
+
+    paramDict['q'] = query
+    params = urlencode(paramDict)
+    url += '?' + params
 
     if VERBOSE:
         print("Query gerrit %s" % url)
@@ -589,7 +598,7 @@ def query_reviews_over_http(remote_url, change=None, current_patch_set=True,
     return reviews
 
 
-def query_reviews_over_ssh(remote_url, change=None, current_patch_set=True,
+def query_reviews_over_ssh(remote_url, change=None, current_patch_set=True, topic=None,
                            exception=CommandFailed, parse_exc=Exception):
     (hostname, username, port, project_name) = \
         parse_gerrit_ssh_params_from_git_url(remote_url)
@@ -601,6 +610,9 @@ def query_reviews_over_ssh(remote_url, change=None, current_patch_set=True,
             query = "--patch-sets change:%s" % change
     else:
         query = "project:%s status:open" % project_name
+
+    if topic:
+        query += " topic:%s" % topic
 
     port_data = "p%s" % port if port is not None else ""
     if username is None:
@@ -1025,6 +1037,36 @@ def list_reviews(remote):
 
     return 0
 
+def get_change_identifier(branch, remote):
+    local_branch_name = get_branch_name(branch)
+    parts = local_branch_name.split("/")
+    if len(parts) == 3 and parts[0] == "review":
+        author_str = parts[1]
+        id_str = parts[2]
+    else:
+        raise Exception("Illegal branch name")
+    remote_url = get_remote_url(remote)
+
+    info = None
+    try:
+        i = int(id_str)
+        review_infos = query_reviews(remote_url,
+                                     change=id_str,
+                                     current_patch_set=True,
+                                     exception=CannotQueryPatchSet,
+                                     parse_exc=ReviewInformationNotFound)
+    except:
+        review_infos = query_reviews(remote_url, topic=id_str,
+                                     exception=CannotQueryPatchSet,
+                                     parse_exc=ReviewInformationNotFound)
+
+    for review_info in review_infos:
+        author = re.sub('\W+', '_', review_info['owner']['name']).lower()
+        if author == author_str:
+            info = review_info
+
+    if info is not None:
+        return info['id']
 
 class CannotQueryPatchSet(CommandFailed):
     "Cannot query patchset information"
@@ -1371,6 +1413,9 @@ def _main():
                        "a branches, rebase on master "
                        "(skipped on conflicts or when -R is specified) "
                        "and show their differences")
+    parser.add_argument("--refresh", dest="refresh",
+                        action="store_true",
+                        help="Update the current review to the latest patch set")
 
     parser.add_argument("-u", "--update", dest="update", action="store_true",
                         help="Force updates from remote locations")
@@ -1465,11 +1510,15 @@ def _main():
     if options.color:
         set_color_output(options.color)
 
-    if options.changeidentifier:
+    if options.changeidentifier or options.refresh:
         if options.compare:
             compare_review(options.changeidentifier,
                            branch, remote, options.rebase)
             return
+
+        if options.refresh:
+            options.download = True
+            options.changeidentifier = get_change_identifier(branch, remote)
         local_branch, remote_branch = fetch_review(options.changeidentifier,
                                                    branch, remote)
         if options.download:
