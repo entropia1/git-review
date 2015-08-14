@@ -1066,7 +1066,7 @@ def get_change_identifier(branch, remote):
             info = review_info
 
     if info is not None:
-        return info['id']
+        return info['number']
 
 class CannotQueryPatchSet(CommandFailed):
     "Cannot query patchset information"
