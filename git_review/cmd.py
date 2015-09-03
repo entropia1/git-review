@@ -536,7 +536,7 @@ def parse_gerrit_ssh_params_from_git_url(git_url):
     return (hostname, username, port, project_name)
 
 
-def query_reviews(remote_url, change=None, current_patch_set=True, topic=None,
+def query_reviews(remote_url, change=None, current_patch_set=True, topic=None, owner=None, reviewer=None,
                   exception=CommandFailed, parse_exc=Exception):
     if remote_url.startswith('http://') or remote_url.startswith('https://'):
         query = query_reviews_over_http
@@ -546,11 +546,13 @@ def query_reviews(remote_url, change=None, current_patch_set=True, topic=None,
                  change=change,
                  current_patch_set=current_patch_set,
                  topic=topic,
+                 owner=owner,
+                 reviewer=reviewer,
                  exception=exception,
                  parse_exc=parse_exc)
 
 
-def query_reviews_over_http(remote_url, change=None, current_patch_set=True, topic=None,
+def query_reviews_over_http(remote_url, change=None, current_patch_set=True, topic=None, owner=None, reviewer=None,
                             exception=CommandFailed, parse_exc=Exception):
     url = urljoin(remote_url, '/changes/')
     paramDict = {}
@@ -566,6 +568,12 @@ def query_reviews_over_http(remote_url, change=None, current_patch_set=True, top
 
     if topic:
         query += " topic:%s" % topic
+
+    if owner:
+        query += ' owner:"%s"' % owner
+
+    if reviewer:
+        query += ' reviewer:"%s"' % reviewer
 
     paramDict['q'] = query
     params = urlencode(paramDict)
@@ -598,7 +606,7 @@ def query_reviews_over_http(remote_url, change=None, current_patch_set=True, top
     return reviews
 
 
-def query_reviews_over_ssh(remote_url, change=None, current_patch_set=True, topic=None,
+def query_reviews_over_ssh(remote_url, change=None, current_patch_set=True, topic=None, owner=None, reviewer=None,
                            exception=CommandFailed, parse_exc=Exception):
     (hostname, username, port, project_name) = \
         parse_gerrit_ssh_params_from_git_url(remote_url)
@@ -613,6 +621,12 @@ def query_reviews_over_ssh(remote_url, change=None, current_patch_set=True, topi
 
     if topic:
         query += " topic:%s" % topic
+
+    if owner:
+        query += ' owner:"%s"' % owner
+
+    if reviewer:
+        query += ' reviewer:"%s"' % reviewer
 
     port_data = "p%s" % port if port is not None else ""
     if username is None:
@@ -983,9 +997,21 @@ class CannotParseOpenChangesets(ChangeSetException):
     EXIT_CODE = 33
 
 
-def list_reviews(remote):
+def list_reviews(remote, incoming=False, outgoing=False):
     remote_url = get_remote_url(remote)
+    git_user_email = None
+    owner = None
+    reviewer = None
+    if incoming or outgoing:
+        git_user_email = git_config_get_value("user", "email", None)
+        if incoming:
+            reviewer = git_user_email
+        else:
+            owner = git_user_email
+
     reviews = query_reviews(remote_url,
+                            owner=owner,
+                            reviewer=reviewer,
                             exception=CannotQueryOpenChangesets,
                             parse_exc=CannotParseOpenChangesets)
 
@@ -1427,6 +1453,10 @@ def _main():
                              "master on successful submission")
     parser.add_argument("-l", "--list", dest="list", action="store_true",
                         help="List available reviews for the current project")
+    parser.add_argument("--list-incoming", dest="list_incoming", action="store_true",
+                        help="List your incoming reviews")
+    parser.add_argument("--list-outgoing", dest="list_outgoing", action="store_true",
+                        help="List your outgoing reviews")
     parser.add_argument("-y", "--yes", dest="yes", action="store_true",
                         help="Indicate that you do, in fact, understand if "
                              "you are submitting more than one patch")
@@ -1533,6 +1563,12 @@ def _main():
         return
     elif options.list:
         list_reviews(remote)
+        return
+    elif options.list_incoming:
+        list_reviews(remote, incoming=True)
+        return
+    elif options.list_outgoing:
+        list_reviews(remote, outgoing=True)
         return
 
     if options.custom_script:
