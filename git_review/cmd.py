@@ -278,10 +278,6 @@ class Config(object):
             filenames.append(config_file)
         for filename in filenames:
             if os.path.exists(filename):
-                if filename != config_file:
-                    msg = ("Using global/system git-review config files (%s) "
-                           "is deprecated")
-                    print(msg % filename)
                 self.config.update(load_config_file(filename))
 
     def __getitem__(self, key):
@@ -996,6 +992,8 @@ class CannotParseOpenChangesets(ChangeSetException):
     "Cannot parse JSON review information from gerrit"
     EXIT_CODE = 33
 
+def cap(s, l):
+    return s if len(s) <= l else s[0:l - 3] + '...'
 
 def list_reviews(remote, incoming=False, outgoing=False):
     remote_url = get_remote_url(remote)
@@ -1019,18 +1017,18 @@ def list_reviews(remote, incoming=False, outgoing=False):
         print("No pending reviews")
         return
 
-    REVIEW_FIELDS = ('number', 'branch', 'subject')
+    REVIEW_FIELDS = ('number', 'branch', 'subject', 'url')
     FIELDS = range(len(REVIEW_FIELDS))
     if check_use_color_output():
-        review_field_color = (colors.yellow, colors.green, "")
+        review_field_color = (colors.yellow, colors.green, "", "")
         color_reset = colors.reset
     else:
-        review_field_color = ("", "", "")
+        review_field_color = [""] * len(REVIEW_FIELDS)
         color_reset = ""
-    review_field_format = ["%*s", "%*s", "%*s"]
-    review_field_justify = [+1, +1, -1]  # +1 is justify to right
+    review_field_format = ["%*s"] * len(REVIEW_FIELDS)
+    review_field_justify = [+1, +1, -1, -1]  # +1 is justify to right
 
-    review_list = [[r[f] for f in REVIEW_FIELDS] for r in reviews]
+    review_list = [[cap(r[f].strip(), 50) for f in REVIEW_FIELDS] for r in reviews]
     review_field_width = dict()
     # assume last field is longest and may exceed the console width in which
     # case using the maximum value will result in extra blank lines appearing
