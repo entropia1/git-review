@@ -1449,6 +1449,10 @@ def _main():
     parser.add_argument("-f", "--finish", dest="finish", action="store_true",
                         help="Close down this branch and switch back to "
                              "master on successful submission")
+    parser.add_argument("--drop", dest="drop",
+                        action="store_true",
+                        help="Close down this branch without pushing it and switch "
+                             "back to master")
     parser.add_argument("-l", "--list", dest="list", action="store_true",
                         help="List available reviews for the current project")
     parser.add_argument("--list-incoming", dest="list_incoming", action="store_true",
@@ -1577,6 +1581,10 @@ def _main():
 
     if not have_hook:
         set_hooks_commit_msg(remote, hook_file)
+
+    if options.drop:
+        finish_branch(branch)
+        return
 
     if options.setup:
         if options.finish and not options.dry:
