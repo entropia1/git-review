@@ -28,7 +28,6 @@ import subprocess
 import sys
 import textwrap
 
-import pkg_resources
 import requests
 
 if sys.version < '3':
@@ -202,12 +201,6 @@ def run_http_exc(klazz, url, **env):
         raise klazz(http_code_2_return_code(res.status_code),
                     res.text, ('GET', url), env)
     return res
-
-
-def get_version():
-    requirement = pkg_resources.Requirement.parse('git-review')
-    provider = pkg_resources.get_provider(requirement)
-    return provider.version
 
 
 def git_directories():
