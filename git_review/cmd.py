@@ -18,7 +18,7 @@ implied.
 See the License for the specific language governing permissions and
 limitations under the License."""
 
-import argparse
+import optparse
 import datetime
 import json
 import os
@@ -1348,143 +1348,154 @@ def assert_valid_reviewers(reviewers):
 def _main():
     usage = "git review [OPTIONS] ... [BRANCH]"
 
-    class DownloadFlag(argparse.Action):
+    class DownloadFlag(object):
         """Additional option parsing: store value in 'dest', but
            at the same time set one of the flag options to True
         """
-        def __call__(self, parser, namespace, values, option_string=None):
-            setattr(namespace, self.dest, values)
-            setattr(namespace, self.const, True)
 
-    parser = argparse.ArgumentParser(usage=usage, description=COPYRIGHT)
+        def __init__(self, flag):
+            self._flag = flag
 
-    topic_arg_group = parser.add_mutually_exclusive_group()
-    topic_arg_group.add_argument("-t", "--topic", dest="topic",
-                                 help="Topic to submit branch to")
-    topic_arg_group.add_argument("-T", "--no-topic", dest="notopic",
-                                 action="store_true",
-                                 help="No topic except if explicitly provided")
+        def __call__(self, option, _opt, value, parser):
+            setattr(parser.values, option.dest, value)
+            setattr(parser.values, self._flag, True)
 
-    parser.add_argument("--reviewers", nargs="+",
-                        help="Add reviewers to uploaded patch sets.")
-    parser.add_argument("-D", "--draft", dest="draft", action="store_true",
-                        help="Submit review as a draft")
-    parser.add_argument("-c", "--compatible", dest="compatible",
-                        action="store_true",
-                        help="Push change to refs/for/* for compatibility "
-                             "with Gerrit versions < 2.3. Ignored if "
-                             "-D/--draft is used.")
-    parser.add_argument("-n", "--dry-run", dest="dry", action="store_true",
-                        help="Don't actually submit the branch for review")
-    parser.add_argument("-i", "--new-changeid", dest="regenerate",
-                        action="store_true",
-                        help="Regenerate Change-id before submitting")
-    parser.add_argument("-r", "--remote", dest="remote",
-                        help="git remote to use for gerrit")
-    parser.add_argument("--use-pushurl", dest="usepushurl",
-                        action="store_true",
-                        help="Use remote push-url logic instead of separate"
-                             " remotes")
+    parser = optparse.OptionParser(usage=usage, description=COPYRIGHT)
 
-    rebase_group = parser.add_mutually_exclusive_group()
-    rebase_group.add_argument("-R", "--no-rebase", dest="rebase",
-                              action="store_false",
-                              help="Don't rebase changes before submitting.")
-    rebase_group.add_argument("-F", "--force-rebase", dest="force_rebase",
-                              action="store_true",
-                              help="Force rebase even when not needed.")
+    # TODO these are mutually exclusive
+    parser.add_option("-t", "--topic", dest="topic",
+                      help="Topic to submit branch to")
+    parser.add_option("-T", "--no-topic", dest="notopic",
+                      action="store_true",
+                      help="No topic except if explicitly provided")
 
-    track_group = parser.add_mutually_exclusive_group()
-    track_group.add_argument("--track", dest="track",
-                             action="store_true",
-                             help="Use tracked branch as default.")
-    track_group.add_argument("--no-track", dest="track",
-                             action="store_false",
-                             help="Ignore tracked branch.")
+    parser.add_option("--reviewers", nargs="+",
+                      help="Add reviewers to uploaded patch sets.")
+    parser.add_option("-D", "--draft", dest="draft", action="store_true",
+                      help="Submit review as a draft")
+    parser.add_option("-c", "--compatible", dest="compatible",
+                      action="store_true",
+                      help="Push change to refs/for/* for compatibility "
+                           "with Gerrit versions < 2.3. Ignored if "
+                           "-D/--draft is used.")
+    parser.add_option("-n", "--dry-run", dest="dry", action="store_true",
+                      help="Don't actually submit the branch for review")
+    parser.add_option("-i", "--new-changeid", dest="regenerate",
+                      action="store_true",
+                      help="Regenerate Change-id before submitting")
+    parser.add_option("-r", "--remote", dest="remote",
+                      help="git remote to use for gerrit")
+    parser.add_option("--use-pushurl", dest="usepushurl",
+                      action="store_true",
+                      help="Use remote push-url logic instead of separate"
+                           " remotes")
 
-    fetch = parser.add_mutually_exclusive_group()
-    fetch.set_defaults(download=False, compare=False, cherrypickcommit=False,
-                       cherrypickindicate=False, cherrypickonly=False)
-    fetch.add_argument("-d", "--download", dest="changeidentifier",
-                       action=DownloadFlag, metavar="CHANGE",
-                       const="download",
-                       help="Download the contents of an existing gerrit "
-                            "review into a branch")
-    fetch.add_argument("-x", "--cherrypick", dest="changeidentifier",
-                       action=DownloadFlag, metavar="CHANGE",
-                       const="cherrypickcommit",
-                       help="Apply the contents of an existing gerrit "
-                             "review onto the current branch and commit "
-                             "(cherry pick; not recommended in most "
-                             "situations)")
-    fetch.add_argument("-X", "--cherrypickindicate", dest="changeidentifier",
-                       action=DownloadFlag, metavar="CHANGE",
-                       const="cherrypickindicate",
-                       help="Apply the contents of an existing gerrit "
-                       "review onto the current branch and commit, "
-                       "indicating its origin")
-    fetch.add_argument("-N", "--cherrypickonly", dest="changeidentifier",
-                       action=DownloadFlag, metavar="CHANGE",
-                       const="cherrypickonly",
-                       help="Apply the contents of an existing gerrit "
-                       "review to the working directory and prepare "
-                       "for commit")
-    fetch.add_argument("-m", "--compare", dest="changeidentifier",
-                       action=DownloadFlag, metavar="CHANGE,PS[-NEW_PS]",
-                       const="compare",
-                       help="Download specified and latest (or NEW_PS) "
-                       "patchsets of an existing gerrit review into "
-                       "a branches, rebase on master "
-                       "(skipped on conflicts or when -R is specified) "
-                       "and show their differences")
-    parser.add_argument("--refresh", dest="refresh",
-                        action="store_true",
-                        help="Update the current review to the latest patch set")
+    # TODO these are mutually exclusive
+    parser.add_option("-R", "--no-rebase", dest="rebase",
+                      action="store_false",
+                      help="Don't rebase changes before submitting.")
+    parser.add_option("-F", "--force-rebase", dest="force_rebase",
+                            action="store_true",
+                            help="Force rebase even when not needed.")
 
-    parser.add_argument("-u", "--update", dest="update", action="store_true",
-                        help="Force updates from remote locations")
-    parser.add_argument("-s", "--setup", dest="setup", action="store_true",
-                        help="Just run the repo setup commands but don't "
-                             "submit anything")
-    parser.add_argument("-f", "--finish", dest="finish", action="store_true",
-                        help="Close down this branch and switch back to "
-                             "master on successful submission")
-    parser.add_argument("--drop", dest="drop",
-                        action="store_true",
-                        help="Close down this branch without pushing it and switch "
-                             "back to master")
-    parser.add_argument("-l", "--list", dest="list", action="store_true",
-                        help="List available reviews for the current project")
-    parser.add_argument("--list-incoming", dest="list_incoming", action="store_true",
-                        help="List your incoming reviews")
-    parser.add_argument("--list-outgoing", dest="list_outgoing", action="store_true",
-                        help="List your outgoing reviews")
-    parser.add_argument("-y", "--yes", dest="yes", action="store_true",
-                        help="Indicate that you do, in fact, understand if "
-                             "you are submitting more than one patch")
-    parser.add_argument("-v", "--verbose", dest="verbose", action="store_true",
-                        help="Output more information about what's going on")
-    parser.add_argument("--no-custom-script", dest="custom_script",
-                        action="store_false", default=True,
-                        help="Do not run custom scripts.")
-    parser.add_argument("--color", dest="color", metavar="<when>",
-                        nargs="?", choices=["always", "never", "auto"],
-                        help="Show color output. --color (without [<when>]) "
-                             "is the same as --color=always. <when> can be "
-                             "one of %(choices)s. Behaviour can also be "
-                             "controlled by the color.ui and color.review "
-                             "configuration settings.")
-    parser.add_argument("--no-color", dest="color", action="store_const",
-                        const="never",
-                        help="Turn off colored output. Can be used to "
-                             "override configuration options. Same as "
-                             "setting --color=never.")
-    parser.add_argument("--license", dest="license", action="store_true",
-                        help="Print the license and exit")
-    parser.add_argument("--version", action="version",
-                        version='%s version %s' %
-                        (os.path.split(sys.argv[0])[-1], get_version()))
-    parser.add_argument("branch", nargs="?")
+    # TODO these are mutually exclusive
+    parser.add_option("--track", dest="track",
+                      action="store_true",
+                      help="Use tracked branch as default.")
+    parser.add_option("--no-track", dest="track",
+                      action="store_false",
+                      help="Ignore tracked branch.")
+
+    # TODO these are mutually exclusive
+    parser.set_defaults(download=False, compare=False, cherrypickcommit=False,
+                        cherrypickindicate=False, cherrypickonly=False)
+    parser.add_option("-d", "--download",
+                      action="callback", callback=DownloadFlag(flag="download"),
+                      type="string",
+                      dest="changeidentifier",
+                      metavar="CHANGE",
+                      help="Download the contents of an existing gerrit review into a branch")
+    parser.add_option("-x", "--cherrypick",
+                      action="callback", callback=DownloadFlag(flag="cherrypickcommit"),
+                      type="string",
+                      dest="changeidentifier",
+                      metavar="CHANGE",
+                      help="Apply the contents of an existing gerrit "
+                           "review onto the current branch and commit "
+                           "(cherry pick; not recommended in most "
+                           "situations)")
+    parser.add_option("-X", "--cherrypickindicate",
+                      action="callback", callback=DownloadFlag(flag="cherrypickindicate"),
+                      type="string",
+                      dest="changeidentifier",
+                      metavar="CHANGE",
+                      help="Apply the contents of an existing gerrit "
+                           "review onto the current branch and commit, "
+                           "indicating its origin")
+    parser.add_option("-N", "--cherrypickonly",
+                      action="callback", callback=DownloadFlag(flag="cherrypickonly"),
+                      type="string",
+                      dest="changeidentifier",
+                      metavar="CHANGE",
+                      help="Apply the contents of an existing gerrit "
+                           "review to the working directory and prepare "
+                           "for commit")
+    parser.add_option("-m", "--compare",
+                      action="callback", callback=DownloadFlag(flag="compare"),
+                      type="string",
+                      dest="changeidentifier",
+                      metavar="CHANGE,PS[-NEW_PS]",
+                      help="Download specified and latest (or NEW_PS) "
+                           "patchsets of an existing gerrit review into "
+                           "a branches, rebase on master "
+                           "(skipped on conflicts or when -R is specified) "
+                           "and show their differences")
+    parser.add_option("--refresh", dest="refresh",
+                      action="store_true",
+                      help="Update the current review to the latest patch set")
+
+    # not mutually exclusive anymore
+    parser.add_option("-u", "--update", dest="update", action="store_true",
+                      help="Force updates from remote locations")
+    parser.add_option("-s", "--setup", dest="setup", action="store_true",
+                      help="Just run the repo setup commands but don't "
+                           "submit anything")
+    parser.add_option("-f", "--finish", dest="finish", action="store_true",
+                      help="Close down this branch and switch back to "
+                           "master on successful submission")
+    parser.add_option("--drop", dest="drop",
+                      action="store_true",
+                      help="Close down this branch without pushing it and switch "
+                           "back to master")
+    parser.add_option("-l", "--list", dest="list", action="store_true",
+                      help="List available reviews for the current project")
+    parser.add_option("--list-incoming", dest="list_incoming", action="store_true",
+                      help="List your incoming reviews")
+    parser.add_option("--list-outgoing", dest="list_outgoing", action="store_true",
+                      help="List your outgoing reviews")
+    parser.add_option("-y", "--yes", dest="yes", action="store_true",
+                      help="Indicate that you do, in fact, understand if "
+                           "you are submitting more than one patch")
+    parser.add_option("-v", "--verbose", dest="verbose", action="store_true",
+                      help="Output more information about what's going on")
+    parser.add_option("--no-custom-script", dest="custom_script",
+                      action="store_false", default=True,
+                      help="Do not run custom scripts.")
+    parser.add_option("--color", dest="color", metavar="<when>",
+                      nargs="?", choices=["always", "never", "auto"],
+                      help="Show color output. --color (without [<when>]) "
+                           "is the same as --color=always. <when> can be "
+                           "one of %(choices)s. Behaviour can also be "
+                           "controlled by the color.ui and color.review "
+                           "configuration settings.")
+    parser.add_option("--no-color", dest="color", action="store_const",
+                      const="never",
+                      help="Turn off colored output. Can be used to "
+                           "override configuration options. Same as "
+                           "setting --color=never.")
+    parser.add_option("--license", dest="license", action="store_true",
+                      help="Print the license and exit")
+    parser.add_option("--branch", dest="branch", action="store", default=None)
 
     parser.set_defaults(dry=False,
                         draft=False,
@@ -1504,7 +1515,7 @@ def _main():
                             track=convert_bool(config['track']),
                             remote=None,
                             usepushurl=convert_bool(config['usepushurl']))
-    options = parser.parse_args()
+    options, args = parser.parse_args()
     if no_git_dir:
         raise no_git_dir
 
