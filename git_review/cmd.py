@@ -1362,7 +1362,7 @@ def _main():
                       action="store_true",
                       help="No topic except if explicitly provided")
 
-    parser.add_option("--reviewers", nargs="+",
+    parser.add_option("--reviewer", dest="reviewers", action="append", default=[],
                       help="Add reviewers to uploaded patch sets.")
     parser.add_option("-D", "--draft", dest="draft", action="store_true",
                       help="Submit review as a draft")
