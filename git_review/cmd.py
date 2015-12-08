@@ -1362,8 +1362,10 @@ def _main():
                       action="store_true",
                       help="No topic except if explicitly provided")
 
-    parser.add_option("--reviewer", dest="reviewers", action="append", default=[],
-                      help="Add reviewers to uploaded patch sets.")
+    parser.add_option("--reviewer", dest="reviewers", action="append", default=[], metavar="REVIEWER",
+                      help="Add a reviewer to uploaded patch sets.")
+    parser.add_option("--reviewers", dest="reviewers_list", action="store", default=None,
+                      help="Add multiple reviewers to uploaded patch sets (comma separated)")
     parser.add_option("-D", "--draft", dest="draft", action="store_true",
                       help="Submit review as a draft")
     parser.add_option("-c", "--compatible", dest="compatible",
@@ -1619,7 +1621,11 @@ def _main():
     if topic and topic != branch:
         cmd += "/%s" % topic
 
-    if options.reviewers:
+    reviewers = options.reviewers.copy()
+    if options.reviewers_list:
+        reviewers += options.reviewers_list.split(',')
+
+    if reviewers:
         assert_valid_reviewers(options.reviewers)
         cmd += "%" + ",".join("r=%s" % r for r in options.reviewers)
 
