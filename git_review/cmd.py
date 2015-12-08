@@ -1076,6 +1076,8 @@ def get_change_identifier(branch, remote):
             if end < 0:
                 end = len(msg)
             id_str = msg[start + len(change_id_prefix):end]
+        else:
+            raise Exception("HEAD does not have a Change-Id.")
 
     review_infos = query_reviews(remote_url,
                                  change=id_str,
