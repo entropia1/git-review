@@ -1538,15 +1538,26 @@ def _main():
     yes = options.yes
     status = 0
 
-    if options.track:
-        remote, branch = resolve_tracking(remote, branch)
-
     check_remote(branch, remote, config['scheme'],
                  config['hostname'], config['port'], config['project'],
                  usepushurl=options.usepushurl)
 
     if options.color:
         set_color_output(options.color)
+
+    # informative options, no need to track the upstream
+    if options.list:
+        list_reviews(remote)
+        return
+    elif options.list_incoming:
+        list_reviews(remote, incoming=True)
+        return
+    elif options.list_outgoing:
+        list_reviews(remote, outgoing=True)
+        return
+
+    if options.track:
+        remote, branch = resolve_tracking(remote, branch)
 
     if options.changeidentifier or options.refresh:
         if options.compare:
@@ -1568,15 +1579,6 @@ def _main():
                 cherrypick_review("-n")
             if options.cherrypickindicate:
                 cherrypick_review("-x")
-        return
-    elif options.list:
-        list_reviews(remote)
-        return
-    elif options.list_incoming:
-        list_reviews(remote, incoming=True)
-        return
-    elif options.list_outgoing:
-        list_reviews(remote, outgoing=True)
         return
 
     if options.custom_script:
