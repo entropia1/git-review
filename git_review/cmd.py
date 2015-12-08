@@ -1066,16 +1066,22 @@ def get_change_identifier(branch, remote):
 
     info = None
     try:
-        i = int(id_str)
-        review_infos = query_reviews(remote_url,
-                                     change=id_str,
-                                     current_patch_set=True,
-                                     exception=CannotQueryPatchSet,
-                                     parse_exc=ReviewInformationNotFound)
+        _i = int(id_str)
     except:
-        review_infos = query_reviews(remote_url, topic=id_str,
-                                     exception=CannotQueryPatchSet,
-                                     parse_exc=ReviewInformationNotFound)
+        msg = run_command("git log --format=%B -n 1 HEAD")
+        change_id_prefix = "Change-Id: "
+        start = msg.find(change_id_prefix)
+        if start >= 0:
+            end = msg.find("\n", start)
+            if end < 0:
+                end = len(msg)
+            id_str = msg[start + len(change_id_prefix):end]
+
+    review_infos = query_reviews(remote_url,
+                                 change=id_str,
+                                 current_patch_set=True,
+                                 exception=CannotQueryPatchSet,
+                                 parse_exc=ReviewInformationNotFound)
 
     for review_info in review_infos:
         author = re.sub('\W+', '_', review_info['owner']['name']).lower()
