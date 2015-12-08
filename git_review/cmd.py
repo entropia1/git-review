@@ -1641,7 +1641,7 @@ def _main():
     if topic and topic != get_upstream_branch():
         cmd += "/%s" % topic
 
-    reviewers = options.reviewers.copy()
+    reviewers = list(options.reviewers)
     if options.reviewers_list:
         reviewers += options.reviewers_list.split(',')
 
