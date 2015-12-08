@@ -1562,18 +1562,26 @@ def _main():
         list_reviews(remote, outgoing=True)
         return
 
-    if options.track:
-        remote, branch = resolve_tracking(remote, branch)
+    upstream_remote = None
+    upstream_branch = None
+    def get_upstream_remote():
+        if upstream_remote is None:
+            upstream_remote, upstream_branch = resolve_tracking(remote, branch)
+        return upstream_remote
+    def get_upstream_branch():
+        if upstream_branch is None:
+            upstream_remote, upstream_branch = resolve_tracking(remote, branch)
+        return upstream_branch
 
     if options.changeidentifier or options.refresh:
         if options.compare:
             compare_review(options.changeidentifier,
-                           branch, remote, options.rebase)
+                           get_upstream_branch(), get_upstream_remote(), options.rebase)
             return
 
         if options.refresh:
             options.download = True
-            options.changeidentifier = get_change_identifier(branch, remote)
+            options.changeidentifier = get_change_identifier(get_upstream_branch(), get_upstream_remote)
         local_branch, remote_branch = fetch_review(options.changeidentifier,
                                                    branch, remote)
         if options.download:
@@ -1594,23 +1602,23 @@ def _main():
     have_hook = os.path.exists(hook_file) and os.access(hook_file, os.X_OK)
 
     if not have_hook:
-        set_hooks_commit_msg(remote, hook_file)
+        set_hooks_commit_msg(get_upstream_remote(), hook_file)
 
     if options.drop:
-        finish_branch(branch)
+        finish_branch(get_upstream_branch())
         return
 
     if options.setup:
         if options.finish and not options.dry:
-            finish_branch(branch)
+            finish_branch(get_upstream_branch())
         return
 
     if options.rebase or options.force_rebase:
-        if not rebase_changes(branch, remote):
+        if not rebase_changes(get_upstream_branch(), get_upstream_remote()):
             sys.exit(1)
         if not options.force_rebase and not undo_rebase():
             sys.exit(1)
-    assert_one_change(remote, branch, yes, have_hook)
+    assert_one_change(get_upstream_remote(), get_upstream_branch(), yes, have_hook)
 
     ref = "publish"
 
@@ -1621,12 +1629,12 @@ def _main():
     elif options.compatible:
         ref = "for"
 
-    cmd = "git push %s HEAD:refs/%s/%s" % (remote, ref, branch)
+    cmd = "git push %s HEAD:refs/%s/%s" % (get_upstream_remote(), ref, get_upstream_branch())
     if options.topic is not None:
         topic = options.topic
     else:
-        topic = None if options.notopic else get_topic(branch)
-    if topic and topic != branch:
+        topic = None if options.notopic else get_topic(get_upstream_branch())
+    if topic and topic != get_upstream_branch():
         cmd += "/%s" % topic
 
     reviewers = options.reviewers.copy()
@@ -1657,7 +1665,7 @@ def _main():
         print(output)
 
     if options.finish and not options.dry and status == 0:
-        finish_branch(branch)
+        finish_branch(get_upstream_branch())
         return
 
     if options.custom_script:
