@@ -1344,6 +1344,8 @@ def assert_valid_reviewers(reviewers):
                 "Whitespace not allowed in reviewer: '%s'" % reviewer)
 
 
+upstream_remote = None
+upstream_branch = None
 def _main():
     usage = "git review [OPTIONS] ... [BRANCH]"
 
@@ -1562,13 +1564,13 @@ def _main():
         list_reviews(remote, outgoing=True)
         return
 
-    upstream_remote = None
-    upstream_branch = None
     def get_upstream_remote():
+        global upstream_branch, upstream_remote
         if upstream_remote is None:
             upstream_remote, upstream_branch = resolve_tracking(remote, branch)
         return upstream_remote
     def get_upstream_branch():
+        global upstream_branch, upstream_remote
         if upstream_branch is None:
             upstream_remote, upstream_branch = resolve_tracking(remote, branch)
         return upstream_branch
@@ -1581,7 +1583,7 @@ def _main():
 
         if options.refresh:
             options.download = True
-            options.changeidentifier = get_change_identifier(get_upstream_branch(), get_upstream_remote)
+            options.changeidentifier = get_change_identifier(get_upstream_branch(), get_upstream_remote())
         local_branch, remote_branch = fetch_review(options.changeidentifier,
                                                    branch, remote)
         if options.download:
